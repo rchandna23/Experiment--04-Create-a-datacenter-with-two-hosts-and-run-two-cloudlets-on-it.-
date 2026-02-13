@@ -76,6 +76,231 @@ To create a datacenter with two hosts and execute two cloudlets on virtual machi
 
 ## Program File
 
+
+
+
+
+package org.cloudbus.cloudsim.examples;
+
+import java.text.DecimalFormat;
+import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.LinkedList;
+import java.util.List;
+
+import org.cloudbus.cloudsim.Cloudlet;
+import org.cloudbus.cloudsim.CloudletSchedulerTimeShared;
+import org.cloudbus.cloudsim.Datacenter;
+import org.cloudbus.cloudsim.DatacenterBroker;
+import org.cloudbus.cloudsim.DatacenterCharacteristics;
+import org.cloudbus.cloudsim.Host;
+import org.cloudbus.cloudsim.Log;
+import org.cloudbus.cloudsim.Pe;
+import org.cloudbus.cloudsim.Storage;
+import org.cloudbus.cloudsim.UtilizationModel;
+import org.cloudbus.cloudsim.UtilizationModelFull;
+import org.cloudbus.cloudsim.Vm;
+import org.cloudbus.cloudsim.VmAllocationPolicySimple;
+import org.cloudbus.cloudsim.VmSchedulerSpaceShared;
+import org.cloudbus.cloudsim.core.CloudSim;
+import org.cloudbus.cloudsim.provisioners.BwProvisionerSimple;
+import org.cloudbus.cloudsim.provisioners.PeProvisionerSimple;
+import org.cloudbus.cloudsim.provisioners.RamProvisionerSimple;
+
+public class CloudSimExample4 {
+
+    private static List<Vm> vmlist;
+    private static List<Cloudlet> cloudletList;
+
+    public static void main(String[] args) {
+
+        Log.printLine("Starting CloudSimExample4...");
+
+        try {
+            int numUser = 1;
+            Calendar calendar = Calendar.getInstance();
+            boolean traceFlag = false;
+
+            CloudSim.init(numUser, calendar, traceFlag);
+
+            // -------- CREATE ONE DATACENTER WITH TWO HOSTS --------
+            Datacenter datacenter0 = createDatacenter("Datacenter_0");
+
+            // -------- CREATE BROKER --------
+            DatacenterBroker broker = createBroker();
+            int brokerId = broker.getId();
+
+            // -------- CREATE TWO VMs --------
+            vmlist = new ArrayList<Vm>();
+
+            int mips = 5000;
+            long size = 10000;
+            int ram = 512;
+            long bw = 1000;
+            int pesNumber = 1;
+            String vmm = "Xen";
+
+            Vm vm1 = new Vm(0, brokerId, mips, pesNumber, ram, bw, size, vmm,
+                    new CloudletSchedulerTimeShared());
+
+            Vm vm2 = new Vm(1, brokerId, mips, pesNumber, ram, bw, size, vmm,
+                    new CloudletSchedulerTimeShared());
+
+            vmlist.add(vm1);
+            vmlist.add(vm2);
+
+            broker.submitVmList(vmlist);
+
+            // -------- CREATE TWO CLOUDLETS --------
+            cloudletList = new ArrayList<Cloudlet>();
+
+            long length = 40000;
+            long fileSize = 300;
+            long outputSize = 300;
+            UtilizationModel utilizationModel = new UtilizationModelFull();
+
+            Cloudlet cloudlet1 = new Cloudlet(0, length, pesNumber,
+                    fileSize, outputSize,
+                    utilizationModel, utilizationModel, utilizationModel);
+
+            Cloudlet cloudlet2 = new Cloudlet(1, length, pesNumber,
+                    fileSize, outputSize,
+                    utilizationModel, utilizationModel, utilizationModel);
+
+            cloudlet1.setUserId(brokerId);
+            cloudlet2.setUserId(brokerId);
+
+            cloudletList.add(cloudlet1);
+            cloudletList.add(cloudlet2);
+
+            broker.submitCloudletList(cloudletList);
+
+            // -------- BIND CLOUDLETS TO VMs --------
+            broker.bindCloudletToVm(0, 0);
+            broker.bindCloudletToVm(1, 1);
+
+            // -------- START SIMULATION --------
+            CloudSim.startSimulation();
+
+            List<Cloudlet> newList = broker.getCloudletReceivedList();
+
+            CloudSim.stopSimulation();
+
+            printCloudletList(newList);
+
+            Log.printLine("CloudSimExample4 finished!");
+        }
+        catch (Exception e) {
+            e.printStackTrace();
+            Log.printLine("Simulation terminated due to error");
+        }
+    }
+
+    // ================= DATACENTER WITH TWO HOSTS =================
+    private static Datacenter createDatacenter(String name) {
+
+        List<Host> hostList = new ArrayList<Host>();
+
+        int mips = 5000;
+        int ram = 2048;
+        long storage = 1000000;
+        int bw = 10000;
+
+        // -------- HOST 1 --------
+        List<Pe> peList1 = new ArrayList<Pe>();
+        peList1.add(new Pe(0, new PeProvisionerSimple(mips)));
+
+        Host host1 = new Host(
+                0,
+                new RamProvisionerSimple(ram),
+                new BwProvisionerSimple(bw),
+                storage,
+                peList1,
+                new VmSchedulerSpaceShared(peList1)
+        );
+
+        // -------- HOST 2 --------
+        List<Pe> peList2 = new ArrayList<Pe>();
+        peList2.add(new Pe(0, new PeProvisionerSimple(mips)));
+
+        Host host2 = new Host(
+                1,
+                new RamProvisionerSimple(ram),
+                new BwProvisionerSimple(bw),
+                storage,
+                peList2,
+                new VmSchedulerSpaceShared(peList2)
+        );
+
+        hostList.add(host1);
+        hostList.add(host2);
+
+        String arch = "x86";
+        String os = "Linux";
+        String vmm = "Xen";
+        double timeZone = 10.0;
+        double cost = 3.0;
+        double costPerMem = 0.05;
+        double costPerStorage = 0.001;
+        double costPerBw = 0.0;
+
+        LinkedList<Storage> storageList = new LinkedList<Storage>();
+
+        DatacenterCharacteristics characteristics =
+                new DatacenterCharacteristics(
+                        arch, os, vmm, hostList,
+                        timeZone, cost,
+                        costPerMem, costPerStorage, costPerBw
+                );
+
+        Datacenter datacenter = null;
+        try {
+            datacenter = new Datacenter(
+                    name,
+                    characteristics,
+                    new VmAllocationPolicySimple(hostList),
+                    storageList,
+                    0
+            );
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        return datacenter;
+    }
+
+    private static DatacenterBroker createBroker() {
+
+        DatacenterBroker broker = null;
+        try {
+            broker = new DatacenterBroker("Broker");
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return broker;
+    }
+
+    private static void printCloudletList(List<Cloudlet> list) {
+
+        DecimalFormat dft = new DecimalFormat("###.##");
+        Log.printLine("\n========== OUTPUT ==========");
+        Log.printLine("Cloudlet ID    STATUS    Datacenter ID    VM ID    Time    Start    Finish");
+
+        for (Cloudlet cloudlet : list) {
+            if (cloudlet.getCloudletStatus() == Cloudlet.SUCCESS) {
+                Log.printLine(
+                        cloudlet.getCloudletId() + "           SUCCESS          " +
+                        cloudlet.getResourceId() + "          " +
+                        cloudlet.getVmId() + "      " +
+                        dft.format(cloudlet.getActualCPUTime()) + "     " +
+                        dft.format(cloudlet.getExecStartTime()) + "     " +
+                        dft.format(cloudlet.getFinishTime())
+                );
+            }
+        }
+    }
+}
+
 ---
 
 ## Algorithm
@@ -101,6 +326,7 @@ Execution Time = Cloudlet Length / VM MIPS
 
 ## Sample Output
 
+<img width="697" height="78" alt="image" src="https://github.com/user-attachments/assets/b528ab36-b880-4627-afe4-e2f8f1d7549b" />
 
 ---
 
